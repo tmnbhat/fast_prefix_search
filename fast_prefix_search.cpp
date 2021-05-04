@@ -5,6 +5,8 @@
 #include <string>
 #include <math.h>
 #include <unordered_map>
+#include <vector>
+#include <bitset>
 
 using namespace std;
 
@@ -13,6 +15,7 @@ using namespace std;
 
 unordered_map <string, int> F;
 unordered_map <string, int> G;
+vector<string> P;
 int s = 1;
 
 // Compressed trie node
@@ -77,7 +80,6 @@ void insertCompressed(struct TrieNode *root, string key)
                     std::cout << " and " << pNodeSplit->node << endl;
                    #endif
                     pCrawl->node = pCrawl->node.substr(0, j);
-
 
                     return;
                 }
@@ -183,16 +185,18 @@ void printCompressedTrieNodes(TrieNode *root)
     }
 }
 
-// Recursive part of the function buildFandG
-void buildFandG_recur(struct TrieNode *pCrawl, string prefixSoFar)
+// Recursive part of the function buildParam
+void buildParam_recur(struct TrieNode *pCrawl, string prefixSoFar)
 {
     string key = prefixSoFar;
     int prefixSoFarLength, nodeLength;
+    int64_t extent1Val;
 
     prefixSoFarLength = prefixSoFar.length();
     nodeLength = pCrawl->node.length();
 
-    G[prefixSoFar] = prefixSoFarLength + nodeLength;
+    G[prefixSoFar] = prefixSoFarLength + nodeLength; /* param G insert */
+
    #ifdef ENABLE_LOGS
     std::cout << "G mapped " << prefixSoFar;
     std::cout << " to " << G[prefixSoFar] << endl;
@@ -230,6 +234,31 @@ void buildFandG_recur(struct TrieNode *pCrawl, string prefixSoFar)
                #endif
             }
         }
+
+        /* start of param P insert*/
+        if((NULL != pCrawl->zeroChild) && (NULL != pCrawl->oneChild))
+        {
+            string extent = prefixSoFar+pCrawl->node;
+            string extent1 = extent + "1";
+
+            P.push_back(extent+"0");
+            P.push_back(extent1);
+            extent1Val = std::stoi(extent1, nullptr, 2);
+            int64_t temp = extent1Val;
+            while (temp > 0)
+            {
+                // if the last bit is not set
+                if ((temp & 1) == 0)
+                {
+                    std::string extent1PlusOneString = std::bitset< 64 >(extent1Val+1).to_string();
+                    int start_index = extent1PlusOneString.length()-extent1.length();
+                    P.push_back(extent1PlusOneString.substr(start_index, extent1.length()));
+                    break;
+                }
+                temp = temp >> 1;
+            }
+        }
+        /* end of param P insert*/
         
     }
     else if((NULL == pCrawl->zeroChild) && (NULL == pCrawl->oneChild))
@@ -243,22 +272,23 @@ void buildFandG_recur(struct TrieNode *pCrawl, string prefixSoFar)
     
     if(pCrawl->zeroChild != NULL)
     {
-        buildFandG_recur(pCrawl->zeroChild, prefixSoFar+pCrawl->node+"0");
+        buildParam_recur(pCrawl->zeroChild, prefixSoFar+pCrawl->node+"0");
     }
     if(pCrawl->oneChild != NULL)
     {
-        buildFandG_recur(pCrawl->oneChild, prefixSoFar+pCrawl->node+"1");
+        buildParam_recur(pCrawl->oneChild, prefixSoFar+pCrawl->node+"1");
     }
 }
 
-// Build function maps F and G as described in Section 3.3 of 
+// Build function maps "F" and "G" and string set "P" described in Section 3.3 of 
 // "Fast Prefix Search in Little Space, with Applications" by Djamal Et Al.
-//NOTE: needs global variable "s" is be calulated beforehand 
-void buildFandG(struct TrieNode *root)
+//NOTE: needs global variable "s" is be calculated beforehand 
+void buildParam(struct TrieNode *root)
 {
     struct TrieNode *pCrawl = root;
-    string prefixSoFar = "";
     int nodeLength = pCrawl->node.length();
+    string prefixSoFar = pCrawl->node;
+    int64_t extent1Val;
 
     if(nodeLength != 0)
     {
@@ -270,24 +300,49 @@ void buildFandG(struct TrieNode *root)
             std::cout << " to 0" << endl;
            #endif
         }
+        
+        string extent = prefixSoFar;
+        string extent1 = extent+"1";
+
+        P.push_back(extent+"0");
+        P.push_back(extent1);
+        
+        /* start of param P insert*/
+        extent1Val = std::stoi(extent1, nullptr, 2);
+        int64_t temp = extent1Val;
+        while (temp > 0)
+        {
+            // if the last bit is not set
+            if ((temp & 1) == 0)
+            {
+                std::string extent1PlusOneString = std::bitset< 64 >(extent1Val+1).to_string();
+
+                int start_index = extent1PlusOneString.length()-extent1.length();
+                P.push_back(extent1PlusOneString.substr(start_index, extent1.length()));
+                break;
+            }
+            temp = temp >> 1;
+        }
+        /* end of param P insert */
     }
 
-    G[""] = nodeLength;
+    G[""] = nodeLength; /* param G insert */
+
    #ifdef ENABLE_LOGS
     std::cout << "G mapped \"\" ";
     std::cout << " to " << nodeLength << endl;
    #endif
 
-    prefixSoFar = pCrawl->node;
-
     if(root->zeroChild != NULL)
     {
-        buildFandG_recur(root->zeroChild, prefixSoFar+"0");
+        buildParam_recur(root->zeroChild, prefixSoFar+"0");
     }
     if(root->oneChild != NULL)
     {
-        buildFandG_recur(root->oneChild, prefixSoFar+"1");
+        buildParam_recur(root->oneChild, prefixSoFar+"1");
     }
+
+    return;
 }
 
 // Returns the exit node of prefix 
@@ -332,8 +387,13 @@ int main()
     searchCompressed(root, "00100110100", true)? std::cout << "Yes\n" :
                           std::cout << "No\n";
 
+    std::cout << endl;
     s = ceil(sqrt(l / n));
-    buildFandG(root);
+    buildParam(root);
+    for(int i = 0; i < P.size(); i++)
+    {
+        cout << "P[" << i << "]" << " = " << P[i] << endl;
+    }
 
     std::cout << endl;
     std::cout << "exit node for prefix \"" << prefix << "\"";
