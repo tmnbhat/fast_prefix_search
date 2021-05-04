@@ -1,3 +1,6 @@
+// Implementation of data structure defined in:
+// "Fast Prefix Search in Little Space, with Applications" by Djamal Et Al.
+
 #include <iostream>
 #include <string>
 #include <math.h>
@@ -5,6 +8,7 @@
 
 using namespace std;
 
+// uncomment this to enable logs
 //#define ENABLE_LOGS
 
 unordered_map <string, int> F;
@@ -179,6 +183,7 @@ void printCompressedTrieNodes(TrieNode *root)
     }
 }
 
+// Recursive part of the function buildFandG
 void buildFandG_recur(struct TrieNode *pCrawl, string prefixSoFar)
 {
     string key = prefixSoFar;
@@ -246,6 +251,9 @@ void buildFandG_recur(struct TrieNode *pCrawl, string prefixSoFar)
     }
 }
 
+// Build function maps F and G as described in Section 3.3 of 
+// "Fast Prefix Search in Little Space, with Applications" by Djamal Et Al.
+//NOTE: needs global variable "s" is be calulated beforehand 
 void buildFandG(struct TrieNode *root)
 {
     struct TrieNode *pCrawl = root;
@@ -282,6 +290,7 @@ void buildFandG(struct TrieNode *root)
     }
 }
 
+// Returns the exit node of prefix 
 string prefixToExitNodeName(string prefix)
 {
     string q = prefix.substr(0, prefix.length()-prefix.length()%s);
