@@ -7,16 +7,20 @@
 #include <unordered_map>
 #include <vector>
 #include <bitset>
+#include <algorithm>
 
 using namespace std;
 
 // uncomment this to enable logs
 //#define ENABLE_LOGS
 
-unordered_map <string, int> F;
-unordered_map <string, int> G;
-vector<string> P;
-int s = 1;
+std::unordered_map <std::string, int> F; // Active use
+std::unordered_map <std::string, int> G; // Active use
+vector<std::string> P;
+string b = ""; // Active use
+int s = 1, n = 0, l = 0;
+std::unordered_map <std::string, bool> temp_is_name_of_leaf;
+std::unordered_map <std::string, int> P_to_index;   // Active use (to be replaced with Monotone Minimal Perfect Hashing function)
 
 // Compressed trie node
 struct TrieNode
@@ -201,6 +205,8 @@ void buildParam_recur(struct TrieNode *pCrawl, string prefixSoFar)
     std::cout << "G mapped " << prefixSoFar;
     std::cout << " to " << G[prefixSoFar] << endl;
    #endif
+    if((NULL == pCrawl->zeroChild) && (NULL == pCrawl->oneChild))
+        temp_is_name_of_leaf[prefixSoFar] = true;
     if(pCrawl->node != "")
     {
         int k = (prefixSoFarLength-1)/s;
@@ -296,7 +302,7 @@ void buildParam(struct TrieNode *root)
         {
             F[pCrawl->node.substr(0,i+1)] = 0;
            #ifdef ENABLE_LOGS
-            std::cout << "mapped " << pCrawl->node.substr(0,i+1);
+            std::cout << "F mapped " << pCrawl->node.substr(0,i+1);
             std::cout << " to 0" << endl;
            #endif
         }
@@ -342,6 +348,23 @@ void buildParam(struct TrieNode *root)
         buildParam_recur(root->oneChild, prefixSoFar+"1");
     }
 
+    std::sort(P.begin(), P.end());
+
+    for(int i = 0; i < P.size(); i++)
+    {
+        P_to_index[P[i]] = i;
+       #ifdef ENABLE_LOGS
+        cout << "P[" << i << "]" << " = " << P[i] << endl;
+       #endif
+        if(temp_is_name_of_leaf[P[i]] == false)
+            b += "0";
+        else
+            b += "1";
+    }
+   #ifdef ENABLE_LOGS
+    cout << "b = " << b << endl;
+   #endif
+
     return;
 }
 
@@ -355,15 +378,78 @@ string prefixToExitNodeName(string prefix)
     else
         return prefix.substr(0, F[prefix]);
 }
+
+// takes a string present in the set P gives a value between 0 and P.size()-1 following
+// a monotone minimal perfect hash function
+int H(string input)
+{
+    return P_to_index[input];
+}
+
+int rank_b(int pos)
+{
+    int rankVal = 0;
+
+    if(pos >= b.length())
+        return -1;
+    for(int i = 0; i < pos; i++)
+        if( b[i] == '1' )
+            rankVal++;
+
+    return rankVal;
+}
+
+// returns the range of ranks of all elements that exitNodeName prefixes
+pair<int, int> exitNodeNameToRanks(string exitNodeName)
+{
+    pair<int, int> rankRange;
+    int64_t exitNodeNameVal;
+
+    if(exitNodeName == "")
+    {
+        rankRange.first = 0;
+        rankRange.second = n;
+    }
+    else
+    {   
+        while(exitNodeName.back() == '0')
+            exitNodeName.pop_back();
+        
+        exitNodeNameVal = std::stoi(exitNodeName, nullptr, 2);
+        rankRange.first = rank_b(H(exitNodeName));
+        std::string exitNodeNamePlusOne = std::bitset< 64 >(exitNodeNameVal+1).to_string();
+
+        int64_t temp = exitNodeNameVal;
+        while (temp > 0)
+        {
+            // if the last bit is not set
+            if ((temp & 1) == 0)
+            {
+                int start_index = exitNodeNamePlusOne.length()-exitNodeName.length();
+                rankRange.second = rank_b(H(exitNodeNamePlusOne.substr(start_index, exitNodeName.length())));
+                return rankRange;
+            }
+            temp = temp >> 1;
+        }
+        rankRange.second = n;
+    }
+
+    return rankRange;
+}
+
+pair<int, int> fastPrefixSearch(string prefix)
+{
+    return exitNodeNameToRanks(prefixToExitNodeName(prefix));
+}
   
 // Driver
 int main()
 {
     // Input keys (use only '0' or '1')
     string keys[] = {"001001010", "0010011010010", "00100110101"};
-    string prefix = "0010011010";
-    int n = sizeof(keys)/sizeof(keys[0]);
-    int l = 0, s = 0;
+    string prefix = "0010011";
+
+    n = sizeof(keys)/sizeof(keys[0]);
   
     struct TrieNode *root = getNode();
 
@@ -390,14 +476,21 @@ int main()
     std::cout << endl;
     s = ceil(sqrt(l / n));
     buildParam(root);
-    for(int i = 0; i < P.size(); i++)
-    {
-        cout << "P[" << i << "]" << " = " << P[i] << endl;
-    }
 
+    string exitNodeTemp = prefixToExitNodeName(prefix);
     std::cout << endl;
     std::cout << "exit node for prefix \"" << prefix << "\"";
-    std::cout << " is \"" << prefixToExitNodeName(prefix) << "\"" <<endl;
+    std::cout << " is \"" << exitNodeTemp << "\"" << endl;
+
+    pair<int,int> rankRangeTemp1 = exitNodeNameToRanks(exitNodeTemp);
+    std::cout << endl;
+    std::cout << "rank range for prefix \"" << prefix << "\"";
+    std::cout << " is " << rankRangeTemp1.first << " to " << rankRangeTemp1.second << endl;
+
+    pair<int,int> rankRangeTemp2 = fastPrefixSearch(prefix);
+    std::cout << endl;
+    std::cout << "fast prefix search for prefix \"" << prefix << "\"";
+    std::cout << " is " << rankRangeTemp2.first << " to " << rankRangeTemp2.second << endl;
 
     return 0;
 }
